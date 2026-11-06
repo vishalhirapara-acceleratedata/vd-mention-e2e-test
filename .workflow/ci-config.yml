@@ -1,0 +1,28 @@
+# Domain CI Configuration — LocalDuck (DuckDB-local) platform
+#
+# Installed once by the `/install-ci` skill, which copies this template and
+# substitutes this Domain's coordinates. The file then belongs to the
+# repository: nothing rewrites it, and your edits persist.
+
+# Platform discriminator. Must be exactly "duckdb_local" for this bundle.
+VD_DOMAIN_DATA_PLATFORM: duckdb_local
+
+# Short slug identifying this domain (kebab-case).
+VD_DOMAIN_SLUG: mention-e2e
+
+# LocalDuck runs database-free static PR validation (ADR hygiene, linting, secret
+# scanning, dbt parse/compile, schema validation, scorecard) — there is no target
+# platform, no production database, and no prod-state manifest to configure, so
+# no further keys are required.
+
+# Optional: where the Logical model job finds the canonical logical model, ontology and data
+# contracts and what it checks them against. Leave the block out to use the defaults shown; a
+# missing model, ontology or contracts directory skips its checks with a notice.
+# logical_model:
+#   model_dir: logical-model                 # the *.ossie.yaml documents
+#   models_dir: transformation/models        # default: <dbt project>/models (searched recursively)
+#   tests_dir: transformation/tests          # default: <dbt project>/tests (generated dbt tests)
+#   adr_dir: docs/adr
+#   ontology_dir: ontology                   # the ontology and its mapping documents
+#   context_file: CONTEXT.md                 # the glossary the ontology's concepts must match
+#   contracts_dir: contracts                 # the {schema}/{table}.odcs.yaml data contracts

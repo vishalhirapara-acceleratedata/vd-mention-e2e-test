@@ -1,0 +1,114 @@
+"""ADR numbering check: duplicate-number and dangling-cross-reference detection.
+
+CLI:
+    adr_lint.py --pr-number <N>
+
+Reads GITHUB_REPOSITORY from the environment to post its PR comment;
+omit --pr-number or GITHUB_REPOSITORY to skip commenting (e.g. a local/manual run).
+
+"""
+
+import glob
+import os
+import re
+import sys
+
+from vibedata_domain_ci import notify_render
+from vibedata_domain_ci import pr_comment
+_ADR_FILENAME_RE = re.compile(r"^(\d{4})-.*\.md$")
+_ADR_CITATION_RE = re.compile(r"\bADR[- ](\d{4})(?!\w)", re.IGNORECASE)
+
+
+def find_duplicate_adr_numbers(filenames: list) -> dict:
+    """Map each ADR number claimed by 2+ filenames to the list of colliding filenames.
+
+    filenames not matching `NNNN-slug.md` are ignored. Returns {} when there are no
+    collisions.
+    """
+    by_number = {}
+    for filename in filenames:
+        match = _ADR_FILENAME_RE.match(filename)
+        if not match:
+            continue
+        by_number.setdefault(match.group(1), []).append(filename)
+    return {number: files for number, files in by_number.items() if len(files) > 1}
+
+
+def find_dangling_adr_references(known_numbers: set, files: list) -> list:
+    """Scan (path, contents) pairs for ADR-00NN / ADR 00NN citations not in known_numbers.
+
+    Returns a list of {file, line, number} for every citation whose number has no
+    corresponding file.
+    """
+    findings = []
+    for path, contents in files:
+        for line_number, line in enumerate(contents.splitlines(), start=1):
+            for match in _ADR_CITATION_RE.finditer(line):
+                number = match.group(1)
+                if number not in known_numbers:
+                    findings.append({"file": path, "line": line_number, "number": number})
+    return findings
+
+
+def _read_docs_tree() -> list:
+    files = []
+    for path in sorted(glob.glob("docs/**/*.md", recursive=True)):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            files.append((path, f.read()))
+    return files
+
+
+def _post_pr_comment(pr_number: str | None, repo: str | None, duplicates: dict, dangling: list) -> None:
+    """Post on every outcome."""
+    body = notify_render.render_adr_numbering_comment(duplicates, dangling)
+    pr_comment.post_or_log(notify_render.ADR_NUMBERING_MARKER, body, pr_number, repo)
+
+
+def scan() -> tuple[dict, list] | None:
+    """(duplicates, dangling) for the checkout's docs/, or None when there is no ADR file."""
+    adr_dir = "docs/adr"
+    adr_filenames = sorted(os.path.basename(p) for p in glob.glob(os.path.join(adr_dir, "*.md")))
+    if not adr_filenames:
+        return None
+    duplicates = find_duplicate_adr_numbers(adr_filenames)
+    known_numbers = {
+        match.group(1) for match in (_ADR_FILENAME_RE.match(f) for f in adr_filenames) if match
+    }
+    return duplicates, find_dangling_adr_references(known_numbers, _read_docs_tree())
+
+
+def main(pr_number: str | None = None, repo: str | None = None) -> int:
+    found = scan()
+    if found is None:
+        print("No ADR files found under docs/adr/ — nothing to check.")
+        _post_pr_comment(pr_number, repo, {}, [])
+        return 0
+
+    duplicates, dangling = found
+
+    if not duplicates and not dangling:
+        print("ADR numbering check passed: no duplicate numbers, no dangling references.")
+        _post_pr_comment(pr_number, repo, duplicates, dangling)
+        return 0
+
+    if duplicates:
+        print("Duplicate ADR numbers found:")
+        for number, files in sorted(duplicates.items()):
+            print(f"  ADR number {number} is claimed by: {', '.join(sorted(files))}")
+
+    if dangling:
+        print("Dangling ADR cross-references found:")
+        for finding in dangling:
+            print(f"  {finding['file']}:{finding['line']} cites ADR-{finding['number']}, which has no matching file")
+
+    _post_pr_comment(pr_number, repo, duplicates, dangling)
+    return 1
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pr-number")
+    args = parser.parse_args()
+    sys.exit(main(pr_number=args.pr_number, repo=os.environ.get("GITHUB_REPOSITORY")))

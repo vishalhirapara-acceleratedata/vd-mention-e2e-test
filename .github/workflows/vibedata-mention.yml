@@ -1,0 +1,42 @@
+# A repository writer who mentions this install's GitHub App on a pull request
+# (`@<app-slug> <request>`) gets the request forwarded to Vibedata. The runner makes the
+# final whole-word match; the job `if` below is only a cheap pre-filter.
+name: vibedata-mention
+
+on:
+  issue_comment:
+    types: [created] # edits and deletions never trigger a mention
+
+jobs:
+  mention:
+    # Every App and bot comment is skipped: replies posted with an App token start
+    # workflows, so this is the loop guard.
+    if: >-
+      github.event.issue.pull_request &&
+      vars.VD_CI_GITHUB_APP_SLUG != '' &&
+      contains(github.event.comment.body, format('@{0}', vars.VD_CI_GITHUB_APP_SLUG)) &&
+      github.event.comment.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    environment: vibedata-mention # releases the token secret to default-branch runs only
+    # Three 90-second open attempts plus the other calls fit inside six minutes.
+    timeout-minutes: 6
+    permissions:
+      contents: read # the sparse checkout of the runner scripts
+      pull-requests: write # reading the pull request, the reaction and replies
+      actions: read # reading the environment's branch rule
+    steps:
+      # The default branch's scripts only, never pull-request code.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      # The comment is read from GITHUB_EVENT_PATH, never interpolated into shell.
+      - name: Start the mention Intent
+        env:
+          APP_SLUG: ${{ vars.VD_CI_GITHUB_APP_SLUG }}
+          STUDIO: ${{ vars.VD_CI_STUDIO_URL }}
+          DOMAIN_ID: ${{ vars.VD_CI_DOMAIN_ID }}
+          PAT: ${{ secrets.VIBEDATA_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PYTHONPATH: .github/scripts
+        run: python3 .github/scripts/vibedata_domain_ci/vibedata_mention_runner.py

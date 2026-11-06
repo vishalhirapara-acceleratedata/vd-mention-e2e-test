@@ -1,0 +1,68 @@
+# Managed versions: the one place the versions of dbt, dlt, their adapters and our
+# vibedata-* units are chosen. Hand-edited, PEP 508, one requirement per line.
+#
+# This file fixes a version; it never causes a package to be installed. Every install
+# site names the packages it needs and installs with `-c` against the effective file
+# (`scripts/runtime_pins.py --platform <platform>`). Entries are one set that must
+# install together on every site's Python: run `npm run check:runtime-resolve` from
+# tests/evals after any edit. A platform that needs a different version of a package
+# already listed here carries that one line in overrides/<platform>.txt.
+
+# Engines and adapters.
+dbt-core==1.12.5
+dbt-fabric==1.11.1
+dbt-fabricspark==1.13.8
+dbt-duckdb==1.11.0
+dbt-redshift==1.11.1
+dbt-bigquery==1.12.1
+dlt==1.30.0
+# dlt's MotherDuck destination writes parquet; the Flight venv carries no pyarrow of its own.
+pyarrow==25.0.1
+
+# SQLFluff lint toolchain: the CI bundle's Gate 0 (ci/static-check) and the Domain pre-commit
+# hook /install-ci installs
+sqlfluff==4.5.0
+sqlfluff-templater-dbt==4.5.0
+
+# Databricks moves as one set with dlt: the adapter, the SDK and the SQL connector all
+# refresh through the SDK, so a bump to any member re-runs the Databricks acceptance run.
+# dbt-databricks 1.12.5 caps dbt-core below 1.12.4; 1.12.6 is the first release that
+# allows the dbt-core the Fabric notebooks run.
+dbt-databricks==1.12.6
+databricks-sdk==0.117.0
+databricks-sql-connector==4.4.0
+
+# Snowflake moves as one set with dlt and dbt-core: the adapter and the Python connector
+# are the versions spiked together (dbt-snowflake 1.12.1 and connector 4.8.0 against
+# dbt-core 1.12.5 and dlt 1.30.0). The connector's `token_file_path` and dlt's token-file
+# mode are version-specific behaviours, so a bump to either re-runs the Snowflake contract tests.
+dbt-snowflake==1.12.1
+snowflake-connector-python==4.8.0
+
+# Our units.
+vibedata-dbt-fabric-notebook==0.2.1
+vibedata-dlt-core==0.12.0
+vibedata-dlt-databricks-notebook==0.3.0
+vibedata-dlt-fabric-notebook==0.11.0
+vibedata-dlt-fabric-studio==0.20.0
+vibedata-dlt-fabric-warehouse-studio==0.8.0
+vibedata-dlt-duckdb-core==0.3.0
+vibedata-dlt-duckdb-studio==0.13.0
+vibedata-motherduck-flight==0.1.0
+vibedata-dlt-studio-secrets==0.8.0
+vibedata-studio-azure-cred-broker==0.3.0
+vibedata-odcs==0.2.2
+# The engine behind odcs profile and check --relations; the odcs package takes >=1.2.9,<1.3.
+datacontract-cli==1.2.9
+vibedata-ossie==0.1.0
+
+# A floor rather than a pin, so a later release reaches the next image build and Domain
+# CI install without an edit here. 0.3.0 is the first release that mints its database
+# password through Studio's privileged service; the plugin no longer hands dlt children
+# the credential file or broker variables.
+vibedata-dlt-redshift-studio>=0.3.0
+
+# MotherDuck refuses a client older than this. The agent image still installs the exact
+# version MotherDuck certifies at build time (its workflow resolves it); this is only
+# the floor every other consumer honours.
+duckdb>=1.5.5

@@ -1,0 +1,10 @@
+# LocalDuck CI uses a runner-local file shared by parse, compile, and static docs
+# generation. It is not a Domain database and is discarded with the GitHub runner.
+dbt_localduck_static:
+  target: static
+  outputs:
+    static:
+      type: duckdb
+      path: /tmp/vibedata_localduck_ci.duckdb
+      database: vibedata_localduck_ci
+      schema: main

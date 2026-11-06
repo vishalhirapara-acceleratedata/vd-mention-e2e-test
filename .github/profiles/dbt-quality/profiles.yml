@@ -1,0 +1,8 @@
+dbt_project_quality_profile:
+  target: dbt_quality
+  outputs:
+    dbt_quality:
+      type: duckdb
+      path: /tmp/vibedata_dbt_quality.duckdb
+      database: vibedata_dbt_quality
+      schema: main

@@ -1,0 +1,141 @@
+name: LocalDuck Static CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Modules the CI engine owns ship as the vibedata_domain_ci package under .github/scripts.
+  PYTHONPATH: .github/scripts
+
+jobs:
+  managed-requirements:
+    name: Managed requirements
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Check ingestion requirements against the managed constraints
+        run: python3 .github/scripts/vibedata_domain_ci/managed_requirements_gate.py
+
+  logical-model:
+    name: Logical model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # odcs diff needs the merge-base with the PR's base
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install the logical-model tooling
+        run: pip install -c .github/managed-constraints.txt vibedata-ossie vibedata-odcs --quiet
+      - name: Check the logical model
+        run: python3 .github/scripts/logical_model_gate.py --repo-map repo-map.json
+
+  adr-numbering:
+    name: ADR numbering
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Run ADR numbering check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/scripts/vibedata_domain_ci/adr_lint.py --pr-number "${{ github.event.pull_request.number }}"
+
+  static-validation:
+    name: Static validation (no data-plane gates)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve layout
+        run: echo "PROJ=$([ -f transformation/dbt_project.yml ] && echo transformation || echo .)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install static validation tools
+        run: |
+          pip install -c .github/managed-constraints.txt ruff sqlfluff sqlfluff-templater-dbt pyyaml dbt-duckdb --quiet
+          case "$(uname -m)" in
+            x86_64) gitleaks_arch=x64 ;;
+            aarch64|arm64) gitleaks_arch=arm64 ;;
+            *) echo "unsupported gitleaks architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_${gitleaks_arch}.tar.gz" \
+            | tar xz -C /usr/local/bin gitleaks
+
+      - name: Python lint
+        run: ruff check . --extend-exclude .github,ingestion/sources
+
+      - name: Prepare dbt-aware SQL linting
+        env:
+          SQLFLUFF_DBT_PROFILE: dbt_localduck_static
+          SQLFLUFF_DBT_TARGET: static
+        run: |
+          dbt deps --project-dir "$PROJ" --quiet
+          python3 .github/scripts/vibedata_domain_ci/prepare_sqlfluff_dbt.py
+
+      - name: DuckDB SQL style
+        run: sqlfluff lint "$PROJ/models" --dialect duckdb
+
+      - name: Secret scan
+        run: gitleaks detect --source . --no-banner
+
+      - name: Parse dbt project
+        run: |
+          dbt parse --project-dir "$PROJ" --profiles-dir .github/profiles \
+            --profile dbt_localduck_static --target static --quiet
+
+      - name: Compile dbt project
+        run: |
+          dbt compile --project-dir "$PROJ" --profiles-dir .github/profiles \
+            --profile dbt_localduck_static --target static --quiet
+
+      - name: Schema validation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/scripts/schema_gate.py --manifest "$PROJ/target/manifest.json" \
+            --repo "${{ github.repository }}" --base-sha "${{ github.event.pull_request.base.sha }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" --output schema_gate.json
+
+      - name: dbt project scorecard
+        run: |
+          python3 .github/scripts/scorecard.py --manifest "$PROJ/target/manifest.json" \
+            --agents-md AGENTS.md > scorecard.json
+
+  static-summary:
+    name: Static-validation scope
+    if: always()
+    needs: [adr-numbering, static-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post static-validation scope
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- localduck-static-ci -->';
+            const body = `${marker}\n## LocalDuck static validation\n\nThis PR ran static checks only: ADR hygiene, logical-model checks (including that the generated semantic dbt tests match the model), linting, secret scanning, dbt dependency resolution/parse/compile, schema validation, and scorecard. Data-plane builds, dbt tests, production-state comparison, and remote-platform gates are intentionally unavailable.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
