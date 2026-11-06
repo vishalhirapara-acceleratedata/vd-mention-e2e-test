@@ -3,22 +3,27 @@ version: 2
 models:
   - name: order_summary
     description: >
-      One-row summary of all orders: total count and total amount,
-      sourced from main.orders.
+      Aggregated summary of all orders, producing one row across the entire
+      orders table. Reports the total number of orders placed and the combined
+      monetary value of those orders. Sourced from main.orders.
     access: public
     config:
       contract:
         enforced: true
     columns:
       - name: order_count
-        description: Total number of orders.
+        description: >
+          Total number of orders across all records in main.orders.
+          Counts every row regardless of amount.
         data_type: bigint
         constraints:
           - type: not_null
         data_tests:
           - not_null
       - name: total_amount
-        description: Sum of all order amounts.
+        description: >
+          Sum of the amount column across all orders in main.orders.
+          Represents the combined monetary value of every order.
         data_type: bigint
         constraints:
           - type: not_null
