@@ -185,6 +185,30 @@ def _idle_mention_intent(studio: StudioPort, auth: dict[str, str], domain_id: st
     return None
 
 
+# Another mention took the idle Intent between the lookup and this open: its version moved
+# (412) or a turn is now running (409). Either way it is busy, so a new Intent is created.
+LOST_RACE_STATUSES: frozenset[int] = frozenset({409, 412})
+
+
+def _send_to_reused(
+    studio: StudioPort, auth: dict[str, str], intent_id: str, prompt: str, sleep: Callable[[float], None]
+) -> bool:
+    """Open the reused Intent and send the prompt; False when another mention got there first."""
+    base = f"/api/v1/intents/{intent_id}"
+    try:
+        current = studio.request("GET", base, headers=auth, timeout=CALL_TIMEOUT)
+        open_headers = {**auth, "If-Match": current.etag} if current.etag else auth
+        _open(studio, f"{base}/open", open_headers, sleep)
+        studio.request(
+            "POST", f"{base}/conversation/send-message", body={"message": prompt}, headers=auth, timeout=CALL_TIMEOUT
+        )
+    except StudioError as error:
+        if error.status in LOST_RACE_STATUSES:
+            return False
+        raise
+    return True
+
+
 def _react(github: GitHubPort, event: MentionEvent) -> None:
     # The reaction only acknowledges the comment. The request has already reached Vibedata,
     # so a failed reaction must not turn a delivered mention into a failed run.
@@ -252,15 +276,8 @@ def run_mention(
         # One mention Intent per pull request: reuse it while it is idle, so the Domain
         # keeps one Intent and one conversation per pull request. A busy one is left alone.
         reusable = _idle_mention_intent(studio, auth, domain_id, title)
-        if reusable is not None:
+        if reusable is not None and _send_to_reused(studio, auth, reusable, prompt, sleep):
             intent_id = reusable
-            base = f"/api/v1/intents/{intent_id}"
-            current = studio.request("GET", base, headers=auth, timeout=CALL_TIMEOUT)
-            open_headers = {**auth, "If-Match": current.etag} if current.etag else auth
-            _open(studio, f"{base}/open", open_headers, sleep)
-            studio.request(
-                "POST", f"{base}/conversation/send-message", body={"message": prompt}, headers=auth, timeout=CALL_TIMEOUT
-            )
             _react(github, event)
             return finish("reused", 0)
 
