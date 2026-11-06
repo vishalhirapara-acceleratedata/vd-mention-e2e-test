@@ -1,6 +1,6 @@
 """Pure core of the GitHub App mention runner.
 
-A pull-request comment that mentions `@vibedata <request>` starts a short Vibedata "mention" Intent that runs the handling-pr-mention skill. This module
+A pull-request comment that mentions `@vibedata <request>` starts a short Vibedata "mention" Intent that runs the handling-vibedata-mentions skill. This module
 decides whether a comment is a real mention, applies the gates in front of Vibedata, makes
 the Vibedata calls through a port, and picks the single reply. All I/O goes through
 `StudioPort` and `GitHubPort`, so it is stdlib only and runs unchanged under test.
@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Protocol
+from urllib.parse import quote, urlencode
 
 ALLOWED_PERMISSIONS: frozenset[str] = frozenset({"write", "maintain", "admin"})
 RETRYABLE_OPEN_CODES: frozenset[str] = frozenset({"intent_open_coordination_busy", "agent_server_startup_crashed"})
@@ -29,7 +30,9 @@ CALL_TIMEOUT = 20.0
 OPEN_TIMEOUT = 90.0
 OPEN_RETRIES = 2
 OPEN_RETRY_DELAY = 5.0
-PROMPT_HEADER = "Use the handling-pr-mention skill with this input:"
+# Composite statuses during which a mention Intent is still working on an earlier mention.
+BUSY_STATUSES: frozenset[str] = frozenset({"working", "confirmation", "provisioning"})
+PROMPT_HEADER = "Use the handling-vibedata-mentions skill with this input:"
 
 REPLIES: dict[str, str] = {
     "unrestricted_environment": (
@@ -101,6 +104,8 @@ class GitHubPort(Protocol):
 
     def react_eyes(self, repository: str, comment_id: int) -> None: ...
 
+    def has_eyes_reaction(self, repository: str, comment_id: int) -> bool: ...
+
 
 # The one trigger word on every install. The preceding-character rule rejects emails
 # (`me@vibedata.com`) and paths (`x/@vibedata`); the following-character rule rejects longer
@@ -162,6 +167,24 @@ def _open(studio: StudioPort, path: str, headers: dict[str, str], sleep: Callabl
             sleep(OPEN_RETRY_DELAY)
 
 
+def _idle_mention_intent(studio: StudioPort, auth: dict[str, str], domain_id: str, title: str) -> str | None:
+    """The pull request's own mention Intent when it exists and is idle, else None.
+
+    The search is a contains match, so the title must also match exactly (PR #4 is not PR #42).
+    """
+    query = urlencode(
+        {"creationTypes": "gha", "lifecycleStates": "ACTIVE", "query": title, "top": "20"}, quote_via=quote
+    )
+    listed = studio.request(
+        "GET", f"/api/v1/domains/{quote(domain_id, safe='')}/intents?{query}", headers=auth, timeout=CALL_TIMEOUT
+    )
+    for item in listed.body["items"]:
+        status = (item.get("compositeStatus") or {}).get("status")
+        if item.get("title") == title and status not in BUSY_STATUSES:
+            return str(item["id"])
+    return None
+
+
 def _react(github: GitHubPort, event: MentionEvent) -> None:
     # The reaction only acknowledges the comment. The request has already reached Vibedata,
     # so a failed reaction must not turn a delivered mention into a failed run.
@@ -209,14 +232,44 @@ def run_mention(
     except Exception:
         return finish("pr_unreadable", 1, REPLIES["pr_unreadable"])
 
+    # Our own reaction lands only after a request reached Vibedata, so it marks a comment
+    # that an earlier run already handled.
+    if github.has_eyes_reaction(event.repository, event.comment_id):
+        return finish("rerun", 0)
+
     auth = {"Authorization": f"Bearer {pat}"}
+    title = f"Vibedata mention on PR #{event.pull_request}"
+    prompt = build_skill_prompt(
+        repository=event.repository,
+        pull_request=event.pull_request,
+        head_branch=head_branch,
+        comment=event.comment_body,
+        commenter=event.commenter_login,
+        studio_url=studio_url,
+        domain_id=domain_id,
+    )
     try:
+        # One mention Intent per pull request: reuse it while it is idle, so the Domain
+        # keeps one Intent and one conversation per pull request. A busy one is left alone.
+        reusable = _idle_mention_intent(studio, auth, domain_id, title)
+        if reusable is not None:
+            intent_id = reusable
+            base = f"/api/v1/intents/{intent_id}"
+            current = studio.request("GET", base, headers=auth, timeout=CALL_TIMEOUT)
+            open_headers = {**auth, "If-Match": current.etag} if current.etag else auth
+            _open(studio, f"{base}/open", open_headers, sleep)
+            studio.request(
+                "POST", f"{base}/conversation/send-message", body={"message": prompt}, headers=auth, timeout=CALL_TIMEOUT
+            )
+            _react(github, event)
+            return finish("reused", 0)
+
         created = studio.request(
             "POST",
             "/api/v1/intents",
             body={
                 "domainId": domain_id,
-                "title": f"PR #{event.pull_request} GitHub mention",
+                "title": title,
                 "agent": "build",
                 "requiresIntentResources": False,
                 "creationSource": "gha",
@@ -235,15 +288,6 @@ def run_mention(
         activated = studio.request("POST", f"{base}/activate", headers=auth, timeout=CALL_TIMEOUT)
         open_headers = {**auth, "If-Match": activated.etag} if activated.etag else auth
         _open(studio, f"{base}/open", open_headers, sleep)
-        prompt = build_skill_prompt(
-            repository=event.repository,
-            pull_request=event.pull_request,
-            head_branch=head_branch,
-            comment=event.comment_body,
-            commenter=event.commenter_login,
-            studio_url=studio_url,
-            domain_id=domain_id,
-        )
         studio.request(
             "POST", f"{base}/conversation/send-message", body={"message": prompt}, headers=auth, timeout=CALL_TIMEOUT
         )

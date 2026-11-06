@@ -100,6 +100,13 @@ class GhCliGitHub:
     def comment(self, repository: str, pull_request: int, body: str) -> None:
         self._gh("pr", "comment", str(pull_request), "--repo", repository, "--body-file", "-", stdin=body)
 
+    def has_eyes_reaction(self, repository: str, comment_id: int) -> bool:
+        count = self._gh(
+            "api", f"repos/{repository}/issues/comments/{comment_id}/reactions?content=eyes",
+            "--jq", '[.[] | select(.user.login == "github-actions[bot]")] | length',
+        )
+        return int(count.strip() or "0") > 0
+
     def react_eyes(self, repository: str, comment_id: int) -> None:
         self._gh(
             "api", "--method", "POST", f"repos/{repository}/issues/comments/{comment_id}/reactions",
