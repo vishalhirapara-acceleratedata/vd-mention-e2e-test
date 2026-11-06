@@ -4,7 +4,7 @@ Reads the comment from the event file (never from a shell-interpolated expressio
 Vibedata token before any other output, and hands the core real adapters: urllib for Vibedata
 and the `gh` CLI (authenticated by the job's GITHUB_TOKEN) for GitHub.
 
-Env: GITHUB_EVENT_PATH, GITHUB_TOKEN, APP_SLUG, STUDIO, DOMAIN_ID, PAT.
+Env: GITHUB_EVENT_PATH, GITHUB_TOKEN, STUDIO, DOMAIN_ID, PAT.
 """
 from __future__ import annotations
 
@@ -116,7 +116,6 @@ def main() -> int:
     studio_url = os.environ.get("STUDIO", "")
     return run_mention(
         event,
-        app_slug=os.environ.get("APP_SLUG", ""),
         pat=pat,
         studio_url=studio_url,
         domain_id=os.environ.get("DOMAIN_ID", ""),
