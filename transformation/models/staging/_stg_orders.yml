@@ -14,7 +14,7 @@ models:
         tests:
           - unique
           - not_null
-      - name: amount
+      - name: order_amount
         description: >
           Monetary value of the order as recorded in the source, in the
           source's native currency and unit. No rounding or currency conversion

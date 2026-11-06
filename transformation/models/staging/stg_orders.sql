@@ -5,7 +5,7 @@ with source as (
 renamed as (
     select
         order_id,
-        amount
+        amount as order_amount
     from source
 )
 
