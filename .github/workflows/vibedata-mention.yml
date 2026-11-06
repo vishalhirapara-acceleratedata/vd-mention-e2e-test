@@ -1,6 +1,6 @@
-# A repository writer who mentions this install's GitHub App on a pull request
-# (`@<app-slug> <request>`) gets the request forwarded to Vibedata. The runner makes the
-# final whole-word match; the job `if` below is only a cheap pre-filter.
+# A repository writer who mentions `@vibedata <request>` on a pull request gets the
+# request forwarded to Vibedata. The runner makes the final whole-word match; the job
+# `if` below is only a cheap pre-filter.
 name: vibedata-mention
 
 on:
@@ -13,8 +13,7 @@ jobs:
     # workflows, so this is the loop guard.
     if: >-
       github.event.issue.pull_request &&
-      vars.VD_CI_GITHUB_APP_SLUG != '' &&
-      contains(github.event.comment.body, format('@{0}', vars.VD_CI_GITHUB_APP_SLUG)) &&
+      contains(github.event.comment.body, '@vibedata') &&
       github.event.comment.user.type != 'Bot'
     runs-on: ubuntu-latest
     environment: vibedata-mention # releases the token secret to default-branch runs only
@@ -33,7 +32,6 @@ jobs:
       # The comment is read from GITHUB_EVENT_PATH, never interpolated into shell.
       - name: Start the mention Intent
         env:
-          APP_SLUG: ${{ vars.VD_CI_GITHUB_APP_SLUG }}
           STUDIO: ${{ vars.VD_CI_STUDIO_URL }}
           DOMAIN_ID: ${{ vars.VD_CI_DOMAIN_ID }}
           PAT: ${{ secrets.VIBEDATA_PAT }}

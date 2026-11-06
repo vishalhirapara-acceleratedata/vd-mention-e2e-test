@@ -1,7 +1,6 @@
 """Pure core of the GitHub App mention runner.
 
-A pull-request comment that mentions the install's GitHub App (`@<app-slug> <request>`)
-starts a short Vibedata "mention" Intent that runs the handling-pr-mention skill. This module
+A pull-request comment that mentions `@vibedata <request>` starts a short Vibedata "mention" Intent that runs the handling-pr-mention skill. This module
 decides whether a comment is a real mention, applies the gates in front of Vibedata, makes
 the Vibedata calls through a port, and picks the single reply. All I/O goes through
 `StudioPort` and `GitHubPort`, so it is stdlib only and runs unchanged under test.
@@ -103,15 +102,15 @@ class GitHubPort(Protocol):
     def react_eyes(self, repository: str, comment_id: int) -> None: ...
 
 
-def is_mention(body: str, slug: str) -> bool:
-    """`@<slug>` as a whole word, any case, on a line that is not a `>` quote."""
-    slug = slug.strip()
-    if not slug:
-        return False
-    # The preceding-character rule rejects emails (`me@slug`) and paths (`x/@slug`); the
-    # following-character rule rejects longer names (`@slug-test`, `@slug_x`).
-    pattern = re.compile(r"(?<![A-Za-z0-9_./-])@" + re.escape(slug) + r"(?![A-Za-z0-9_-])", re.IGNORECASE)
-    return any(pattern.search(line) for line in body.splitlines() if not line.lstrip().startswith(">"))
+# The one trigger word on every install. The preceding-character rule rejects emails
+# (`me@vibedata.com`) and paths (`x/@vibedata`); the following-character rule rejects longer
+# names (`@vibedata-test`, `@vibedata_x`, `@vibedatabot`).
+MENTION = re.compile(r"(?<![A-Za-z0-9_./-])@vibedata(?![A-Za-z0-9_-])", re.IGNORECASE)
+
+
+def is_mention(body: str) -> bool:
+    """`@vibedata` as a whole word, any case, on a line that is not a `>` quote."""
+    return any(MENTION.search(line) for line in body.splitlines() if not line.lstrip().startswith(">"))
 
 
 def build_skill_prompt(
@@ -175,7 +174,6 @@ def _react(github: GitHubPort, event: MentionEvent) -> None:
 def run_mention(
     event: MentionEvent,
     *,
-    app_slug: str,
     pat: str,
     studio_url: str,
     domain_id: str,
@@ -194,7 +192,7 @@ def run_mention(
         log(f"::notice::vibedata-mention outcome={outcome} intent={intent_id or 'none'}")
         return code
 
-    if not is_mention(event.comment_body, app_slug):
+    if not is_mention(event.comment_body):
         return finish("no_mention", 0)
     if github.permission(event.repository, event.commenter_login) not in ALLOWED_PERMISSIONS:
         return finish("not_writer", 0)
