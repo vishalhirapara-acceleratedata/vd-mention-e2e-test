@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: order_summary
+    description: >
+      Aggregated summary of all orders, producing one row across the entire
+      orders table. Reports the total number of orders placed and the combined
+      monetary value of those orders. Sourced from main.orders.
+    access: public
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_count
+        description: >
+          Total number of orders across all records in main.orders.
+          Counts every row regardless of amount.
+        data_type: bigint
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+      - name: total_amount
+        description: >
+          Sum of the amount column across all orders in main.orders.
+          Represents the combined monetary value of every order.
+        data_type: bigint
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: order_summary_counts_all_rows
+    description: Verify that order_count and total_amount aggregate correctly.
+    model: order_summary
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 100}
+          - {order_id: 2, amount: 200}
+          - {order_id: 3, amount: 50}
+    expect:
+      rows:
+        - {order_count: 3, total_amount: 350}
+
+  - name: order_summary_single_row
+    description: Single-row input returns that row's amount.
+    model: order_summary
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 42}
+    expect:
+      rows:
+        - {order_count: 1, total_amount: 42}
+
+  - name: order_summary_zero_amount
+    description: Rows with zero amount are counted and included in total.
+    model: order_summary
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 0}
+          - {order_id: 2, amount: 0}
+    expect:
+      rows:
+        - {order_count: 2, total_amount: 0}
