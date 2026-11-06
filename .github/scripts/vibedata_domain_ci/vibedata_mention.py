@@ -32,7 +32,7 @@ OPEN_RETRIES = 2
 OPEN_RETRY_DELAY = 5.0
 # Composite statuses during which a mention Intent is still working on an earlier mention.
 BUSY_STATUSES: frozenset[str] = frozenset({"working", "confirmation", "provisioning"})
-PROMPT_HEADER = "Use the handling-vibedata-mentions skill with this input:"
+PROMPT_HEADER = "Invoke the handling-vibedata-mentions skill now, even if you used it earlier in this conversation, and follow it for this input:"
 
 REPLIES: dict[str, str] = {
     "unrestricted_environment": (
