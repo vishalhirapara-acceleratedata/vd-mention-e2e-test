@@ -1,0 +1,176 @@
+# The released configuration-key list: the only source of the keys
+# `.workflow/ci-config.yml` may carry. ci_config.py reads every list below from here; no second list
+# exists in code. A nested key is a dotted path (`PARENT.child`).
+
+# The required keys for each platform. Total over platform_enum.VALID_PLATFORMS — every member has its
+# own entry, so a platform added to VALID_PLATFORMS without one here raises instead of silently
+# inheriting Fabric's keys. A config that omits VD_DOMAIN_DATA_PLATFORM is the one deliberate exception:
+# it still gets fabric_lakehouse's keys, matching prior behaviour.
+required_keys:
+  # The two `*_NAME` coordinates are deliberately absent: no workflow consumes them (ci.yml re-exports
+  # them as preflight outputs that nothing reads downstream), and both the /install-ci skill and the
+  # plugin's runtime-location-contract.json declare them optional. Requiring them here failed an install
+  # that legitimately omitted them.
+  fabric_lakehouse:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_FABRIC_LAKEHOUSE_WORKSPACE_ID
+    - VD_DOMAIN_FABRIC_LAKEHOUSE_ID
+  # A Warehouse's coordinates are warehouse-shaped, not lakehouse-shaped, and the NAME is load-bearing
+  # rather than cosmetic: the Intent's bridge Lakehouse — and the CI bridge that mirrors it — must carry
+  # the Domain Warehouse's name verbatim, because a three-part TDS name records no workspace and only
+  # resolves against an item of exactly that name.
+  fabric_warehouse:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_FABRIC_WAREHOUSE_WORKSPACE_ID
+    - VD_DOMAIN_FABRIC_WAREHOUSE_WORKSPACE_NAME
+    - VD_DOMAIN_FABRIC_WAREHOUSE_ID
+    - VD_DOMAIN_FABRIC_WAREHOUSE_NAME
+  motherduck:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_MOTHERDUCK_DATABASE
+  # LocalDuck runs no CI against a target platform, so it has no credential/coordinate keys to
+  # validate — just the domain slug every platform's config carries.
+  duckdb_local:
+    - VD_DOMAIN_SLUG
+  # Redshift's coordinates: the Domain's endpoint and database, as the plugin's install-ci renders them.
+  # The bundle publishes the production manifest only, which reads the database and VD_DOMAIN_SCHEMA
+  # (redshift_prod_profile.py).
+  redshift:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_REDSHIFT_HOST
+    - VD_DOMAIN_REDSHIFT_PORT
+    - VD_DOMAIN_REDSHIFT_DATABASE
+  # Snowflake and Databricks publish only the production manifest, whose offline compile renders the
+  # database or catalog into every relation name. The Primary Schema is optional, as the Domain
+  # binding's is: an absent one falls back to the platform's default schema in the publish profile.
+  snowflake:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_SNOWFLAKE_DATABASE
+  databricks:
+    - VD_DOMAIN_SLUG
+    - VD_DOMAIN_DATABRICKS_CATALOG
+
+# Every known key. `alias` is the legacy lowercase name every existing downstream consumer
+# (preflight.py's GITHUB_OUTPUT writer, ci.yml's `outputs.*` refs, fabric_api.py) already expects;
+# a key without one passes through under its own name. VD_DOMAIN_SCHEMA has no alias: no engine
+# consumer reads it under a legacy name.
+#
+# No Warehouse key has an alias, on purpose. The Warehouse preflight job reads its coordinates back
+# under their own VD_DOMAIN_FABRIC_WAREHOUSE_* names (an untranslated key passes through to
+# GITHUB_OUTPUT unchanged), and its publish workflow reads ci-config.yml directly, so no consumer needs
+# a legacy name. A shared alias would also make the translation lossy for a malformed config carrying
+# both Fabric kinds' coordinates — two source keys mapping to one `prod_workspace_id` silently drops
+# whichever comes first.
+keys:
+  VD_DOMAIN_DATA_PLATFORM: { alias: platform }
+  VD_DOMAIN_SLUG: { alias: domain }
+  VD_DOMAIN_SCHEMA: {}
+  VD_DOMAIN_FABRIC_LAKEHOUSE_WORKSPACE_ID: { alias: prod_workspace_id }
+  VD_DOMAIN_FABRIC_LAKEHOUSE_WORKSPACE_NAME: { alias: prod_workspace_name }
+  VD_DOMAIN_FABRIC_LAKEHOUSE_ID: { alias: prod_lakehouse_id }
+  VD_DOMAIN_FABRIC_LAKEHOUSE_NAME: { alias: prod_lakehouse_name }
+  VD_DOMAIN_FABRIC_WAREHOUSE_WORKSPACE_ID: {}
+  VD_DOMAIN_FABRIC_WAREHOUSE_WORKSPACE_NAME: {}
+  VD_DOMAIN_FABRIC_WAREHOUSE_ID: {}
+  VD_DOMAIN_FABRIC_WAREHOUSE_NAME: {}
+  VD_DOMAIN_FABRIC_WAREHOUSE_CODE_LAKEHOUSE_ID: {}
+  VD_DOMAIN_MOTHERDUCK_DATABASE: { alias: prod_db_name }
+  VD_DOMAIN_SNOWFLAKE_DATABASE: { alias: prod_db_name }
+  VD_DOMAIN_SNOWFLAKE_PRIMARY_SCHEMA: { alias: prod_schema_name }
+  VD_DOMAIN_DATABRICKS_CATALOG: { alias: prod_db_name }
+  VD_DOMAIN_DATABRICKS_PRIMARY_SCHEMA: { alias: prod_schema_name }
+  VD_DOMAIN_REDSHIFT_HOST: {}
+  VD_DOMAIN_REDSHIFT_PORT: {}
+  VD_DOMAIN_REDSHIFT_DATABASE: {}
+  VD_DOMAIN_REDSHIFT_CLUSTER_IDENTIFIER: {}
+  VD_DOMAIN_REDSHIFT_WORKGROUP_NAME: {}
+  VD_DOMAIN_CI_DBT_PROFILE: { alias: ci_target }
+  VD_DOMAIN_CI_SPARK_COMPUTE: { alias: spark_compute }
+  VD_DOMAIN_CI_SPARK_COMPUTE.driver_cores: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.driver_memory: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.executor_cores: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.executor_memory: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.dynamic_executor_allocation: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.dynamic_executor_allocation.enabled: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.dynamic_executor_allocation.min_executors: {}
+  VD_DOMAIN_CI_SPARK_COMPUTE.dynamic_executor_allocation.max_executors: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE: { alias: prod_manifest_source }
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.mode: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.workflow: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.artifact_name: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.main_branch: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.workspace_id: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.lakehouse_id: {}
+  VD_DOMAIN_PROD_MANIFEST_SOURCE.file_path: {}
+  logical_model: {}
+  logical_model.model_dir: {}
+  logical_model.models_dir: {}
+  logical_model.tests_dir: {}
+  logical_model.adr_dir: {}
+  logical_model.ontology_dir: {}
+  logical_model.context_file: {}
+  logical_model.contracts_dir: {}
+
+# The `*_VAR` indirection keys: each names the GitHub Actions secret or variable that holds a value,
+# never the value. Validated permissively on purpose: none is required — a mapping can be present and
+# correct while the Variable it names is unset, so requiring the key would not catch the real failure
+# anyway. Whether each named Secret or Variable is actually set is checked against `required_github`
+# below, by `github-check` and `ci / preflight`.
+var_keys:
+  - AZURE_TENANT_ID_VAR
+  - AZURE_CLIENT_ID_VAR
+  - FABRIC_CAPACITY_ID_VAR
+  - LLM_API_KEY_VAR
+  - LLM_API_URL_VAR
+  - LLM_MODEL_VAR
+  - MOTHERDUCK_TOKEN_VAR
+
+# The GitHub Secrets and Variables CI needs on each platform, each named through one of
+# the `*_VAR` keys above, so the actual name is the one the repo's ci-config.yml gives. Total over
+# platform_enum.VALID_PLATFORMS, like required_keys. `vibedata-domain-ci github-check` checks a repo against
+# it and `ci / preflight` checks what a run receives; a test keeps it equal to what the released workflows
+# read. design-drift runs on every platform, so every platform needs the LLM entries: Studio's sync
+# provisions all three even though the engine has defaults for the URL and model. `unless: vertex_llm_url`
+# waives an entry when the LLM_API_URL Variable is a Vertex AI host, where design-drift sends a Google
+# token and never reads LLM_API_KEY.
+required_github:
+  fabric_lakehouse:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+    - { key: AZURE_TENANT_ID_VAR, kind: variable }
+    - { key: AZURE_CLIENT_ID_VAR, kind: variable }
+    - { key: FABRIC_CAPACITY_ID_VAR, kind: variable }
+  fabric_warehouse:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+    - { key: AZURE_TENANT_ID_VAR, kind: variable }
+    - { key: AZURE_CLIENT_ID_VAR, kind: variable }
+    - { key: FABRIC_CAPACITY_ID_VAR, kind: variable }
+  motherduck:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+    - { key: MOTHERDUCK_TOKEN_VAR, kind: secret }
+  duckdb_local:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+  redshift:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+  snowflake:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+  databricks:
+    - { key: LLM_API_KEY_VAR, kind: secret, unless: vertex_llm_url }
+    - { key: LLM_API_URL_VAR, kind: variable }
+    - { key: LLM_MODEL_VAR, kind: variable }
+
+# Keys a release renamed or removed (dotted paths), so preflight names the key to change:
+#   OLD_KEY:        { replaced_by: NEW_KEY, since: "2.0.0" }
+#   REMOVED_KEY:    { removed: true, since: "2.0.0" }
+retired_keys: {}

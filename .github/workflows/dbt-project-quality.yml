@@ -1,0 +1,46 @@
+name: dbt Quality (LocalDuck)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Modules the CI engine owns ship as the vibedata_domain_ci package under .github/scripts.
+  PYTHONPATH: .github/scripts
+
+jobs:
+  dbt-project-evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve layout
+        run: echo "PROJ=$([ -f transformation/dbt_project.yml ] && echo transformation || echo .)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install evaluator dependencies
+        run: pip install -c .github/managed-constraints.txt dbt-duckdb dbt-core pyyaml --quiet
+
+      - name: Run dbt-project-evaluator offline
+        run: |
+          dbt deps --project-dir "$PROJ" --quiet
+          dbt build --project-dir "$PROJ" --select dbt_project_evaluator \
+            --vars '{dbt_project_evaluator_enabled: true}' \
+            --profiles-dir .github/profiles/dbt-quality \
+            --profile dbt_project_quality_profile --target dbt_quality --quiet || true
+
+      - name: Post advisory PR comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          DBT_QUALITY_DUCKDB_PATH: /tmp/vibedata_dbt_quality.duckdb
+        run: python3 .github/scripts/vibedata_domain_ci/dbt_quality_comment.py

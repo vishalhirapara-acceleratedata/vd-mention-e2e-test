@@ -1,0 +1,40 @@
+name: Publish dbt Docs (LocalDuck)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve layout
+        run: echo "PROJ=$([ -f transformation/dbt_project.yml ] && echo transformation || echo .)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install dbt-duckdb
+        run: pip install -c .github/managed-constraints.txt dbt-duckdb --quiet
+
+      - name: Parse dbt project
+        run: |
+          dbt deps --project-dir "$PROJ" --quiet
+          dbt parse --project-dir "$PROJ" --profiles-dir .github/profiles \
+            --profile dbt_localduck_static --target static --quiet
+
+      - name: Generate dbt Docs static site
+        run: |
+          dbt docs generate --project-dir "$PROJ" --profiles-dir .github/profiles \
+            --profile dbt_localduck_static --target static --static --empty-catalog --no-compile --quiet
+
+      - name: Publish dbt Docs to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/publish_dbt_docs_release.py "$PROJ/target" static_index.html
