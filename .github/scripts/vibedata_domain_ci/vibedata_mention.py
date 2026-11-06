@@ -32,7 +32,7 @@ OPEN_RETRIES = 2
 OPEN_RETRY_DELAY = 5.0
 # Composite statuses during which a mention Intent is still working on an earlier mention.
 BUSY_STATUSES: frozenset[str] = frozenset({"working", "confirmation", "provisioning"})
-PROMPT_HEADER = "Invoke the handling-vibedata-mentions skill now, even if you used it earlier in this conversation, and follow it for this input:"
+PROMPT_HEADER = "Handle this GitHub pull request mention: invoke the handling-vibedata-mentions skill now, even if it was already used in this conversation, and apply it to the mention details below:"
 
 REPLIES: dict[str, str] = {
     "unrestricted_environment": (
@@ -185,8 +185,9 @@ def _idle_mention_intent(studio: StudioPort, auth: dict[str, str], domain_id: st
     return None
 
 
-# Another mention took the idle Intent between the lookup and this open: its version moved
-# (412) or a turn is now running (409). Either way it is busy, so a new Intent is created.
+# Studio refused the open or send because another mention changed the Intent after the lookup
+# (412, or 409). A new Intent is created instead. Two runs that both reach send-message are
+# both accepted: the agent then handles the two messages one after the other.
 LOST_RACE_STATUSES: frozenset[int] = frozenset({409, 412})
 
 
