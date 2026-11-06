@@ -2,12 +2,20 @@ version: 2
 
 models:
   - name: stg_orders
-    description: Staged orders from the raw orders table, selecting order_id and amount.
+    description: >
+      Staging model for orders. Selects and lightly renames columns from the raw
+      `main.orders` source table. One row per order. Intended as the clean,
+      typed entry point for downstream models that need order data.
     columns:
       - name: order_id
-        description: Unique identifier for each order.
+        description: >
+          Surrogate-free primary key for the order, sourced directly from
+          `main.orders`. Unique and never null; tested to enforce both constraints.
         tests:
           - unique
           - not_null
       - name: amount
-        description: Order amount.
+        description: >
+          Monetary value of the order as recorded in the source, in the
+          source's native currency and unit. No rounding or currency conversion
+          is applied at this layer.
