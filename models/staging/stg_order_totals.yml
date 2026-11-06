@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: stg_order_totals
+    description: Sums the amount column across all rows in main.orders to produce a single total.
+    access: protected
+    columns:
+      - name: total_amount
+        description: Sum of all order amounts from main.orders.
+        tests:
+          - not_null
+
+unit_tests:
+  - name: sums_multiple_rows
+    description: Verify that multiple rows are summed correctly.
+    model: stg_order_totals
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 100}
+          - {order_id: 2, amount: 250}
+          - {order_id: 3, amount: 50}
+    expect:
+      rows:
+        - {total_amount: 400}
+
+  - name: sums_single_row
+    description: Verify that a single row returns its own amount.
+    model: stg_order_totals
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 999}
+    expect:
+      rows:
+        - {total_amount: 999}
+
+  - name: empty_input_returns_null
+    description: Verify that an empty source returns NULL (SUM of no rows).
+    model: stg_order_totals
+    given:
+      - input: source('main', 'orders')
+        rows: []
+    expect:
+      rows:
+        - {total_amount: null}
