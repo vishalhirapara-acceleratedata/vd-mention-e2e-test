@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: Staged orders from the raw orders table, selecting order_id and amount.
+    columns:
+      - name: order_id
+        description: Unique identifier for each order.
+        tests:
+          - unique
+          - not_null
+      - name: amount
+        description: Order amount.
