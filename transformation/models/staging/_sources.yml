@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: domain_db
+    database: domain_db
+    schema: main
+    tables:
+      - name: orders
+        description: Raw orders table with order_id and amount.
+        columns:
+          - name: order_id
+            description: Unique identifier for each order.
+            tests:
+              - unique
+              - not_null
+          - name: amount
+            description: Order amount.

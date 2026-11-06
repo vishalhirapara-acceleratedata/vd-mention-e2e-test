@@ -1,0 +1,11 @@
+mention_e2e:
+  target: sandbox
+  outputs:
+    sandbox:
+      type: duckdb
+      path: /data/ephm_duckdb/ephm_mention-e2e_orders-staging-model-c4d67fcf.duckdb
+      schema: main
+      attach:
+        - path: /data/duckdb/mention_e2e.duckdb
+          alias: domain_db
+          read_only: true

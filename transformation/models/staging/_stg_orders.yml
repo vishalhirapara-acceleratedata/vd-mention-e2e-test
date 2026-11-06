@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: >
+      Staging model for orders. Selects and lightly renames columns from the raw
+      `main.orders` source table. One row per order. Intended as the clean,
+      typed entry point for downstream models that need order data.
+    columns:
+      - name: order_id
+        description: >
+          Natural primary key for the order, sourced directly from `main.orders`
+          with no transformation applied. Uniquely identifies one order and is
+          never null; both constraints are enforced by tests.
+        tests:
+          - unique
+          - not_null
+      - name: order_amount
+        description: >
+          Monetary value of the order as recorded in the source, in the
+          source's native currency and unit. No rounding or currency conversion
+          is applied at this layer.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
