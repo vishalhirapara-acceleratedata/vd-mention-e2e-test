@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: large_orders
+    description: Orders from main.orders with an amount of at least 100.
+    access: protected
+    columns:
+      - name: order_id
+        description: Unique identifier for each order.
+        data_tests:
+          - not_null
+          - unique
+      - name: amount
+        description: Order amount; always >= 100 in this model.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: large_orders_includes_boundary
+    description: Amount exactly 100 is included.
+    model: large_orders
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 100}
+          - {order_id: 2, amount: 99}
+          - {order_id: 3, amount: 150}
+    expect:
+      rows:
+        - {order_id: 1, amount: 100}
+        - {order_id: 3, amount: 150}
