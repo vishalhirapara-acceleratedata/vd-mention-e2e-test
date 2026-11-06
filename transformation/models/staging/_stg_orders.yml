@@ -19,3 +19,8 @@ models:
           Monetary value of the order as recorded in the source, in the
           source's native currency and unit. No rounding or currency conversion
           is applied at this layer.
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
