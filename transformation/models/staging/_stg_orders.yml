@@ -9,8 +9,9 @@ models:
     columns:
       - name: order_id
         description: >
-          Surrogate-free primary key for the order, sourced directly from
-          `main.orders`. Unique and never null; tested to enforce both constraints.
+          Natural primary key for the order, sourced directly from `main.orders`
+          with no transformation applied. Uniquely identifies one order and is
+          never null; both constraints are enforced by tests.
         tests:
           - unique
           - not_null
