@@ -1,0 +1,22 @@
+name: mention_e2e
+version: '1.0.0'
+config-version: 2
+
+profile: "{{ env_var('DBT_PROFILE_NAME', 'dbt_duckdb_local') }}"
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  mention_e2e:
+    marts:
+      +materialized: table

@@ -1,0 +1,24 @@
+# managed: runtime
+.agents_tmp/
+/.openhands/memory/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.env
+# managed: dbt
+/target/
+*/target/
+/logs/
+*/logs/
+dbt_packages/
+*.log
+.user.yml
+/*livy-session-id.txt*
+*/*livy-session-id.txt*
+/.hc-session-*.tmp
+*/.hc-session-*.tmp
