@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: large_orders
+    description: >
+      High-value orders filtered from the raw orders table. Contains every order
+      whose amount is at least 100. Use this model to analyse or aggregate
+      significant order activity without manually applying the amount threshold.
+    access: protected
+    columns:
+      - name: order_id
+        description: >
+          Surrogate-free primary key that uniquely identifies each order,
+          sourced directly from main.orders. Not null and unique within this model.
+        data_tests:
+          - not_null
+          - unique
+      - name: amount
+        description: >
+          Monetary value of the order in the same currency units as the source
+          table. Always greater than or equal to 100 in this model; rows below
+          that threshold are excluded by the filter in large_orders.sql.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: large_orders_includes_boundary
+    description: Amount exactly 100 is included.
+    model: large_orders
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 100}
+          - {order_id: 2, amount: 99}
+          - {order_id: 3, amount: 150}
+    expect:
+      rows:
+        - {order_id: 1, amount: 100}
+        - {order_id: 3, amount: 150}
