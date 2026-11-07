@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: customer_orders
-    description: "Aggregate summary of all orders: total order count and total monetary amount."
+    description: Reports the order count and total amount from main.orders.
     access: protected
     columns:
       - name: order_count
