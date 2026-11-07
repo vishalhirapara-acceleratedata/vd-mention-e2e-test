@@ -94,8 +94,12 @@ class GhCliGitHub:
             raise
         return _json_object(raw.encode("utf-8")).get("deployment_branch_policy")
 
-    def head_ref(self, repository: str, pull_request: int) -> str:
-        return self._gh("api", f"repos/{repository}/pulls/{pull_request}", "--jq", ".head.ref").strip()
+    def pull_request_head(self, repository: str, pull_request: int) -> tuple[str, str]:
+        raw = self._gh("api", f"repos/{repository}/pulls/{pull_request}", "--jq", "[.state, .head.ref] | @tsv")
+        state, _, ref = raw.strip().partition("\t")
+        if not state or not ref:
+            raise ValueError(f"unexpected pull request read: {raw!r}")
+        return state, ref
 
     def comment(self, repository: str, pull_request: int, body: str) -> None:
         self._gh("pr", "comment", str(pull_request), "--repo", repository, "--body-file", "-", stdin=body)
