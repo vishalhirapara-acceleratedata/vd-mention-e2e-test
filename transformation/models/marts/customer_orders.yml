@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: customer_orders
+    description: "Aggregate summary of all orders: total order count and total monetary amount."
+    access: protected
+    columns:
+      - name: order_count
+        description: Total number of orders in the orders table.
+        data_tests:
+          - not_null
+      - name: total_amount
+        description: Sum of the amount column across all orders.
+        data_tests:
+          - not_null
+
+unit_tests:
+  - name: single_order
+    description: One order row produces order_count=1 and total_amount equal to that order's amount.
+    model: customer_orders
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 50}
+    expect:
+      rows:
+        - {order_count: 1, total_amount: 50}
+
+  - name: multiple_orders
+    description: Multiple rows aggregate correctly.
+    model: customer_orders
+    given:
+      - input: source('main', 'orders')
+        rows:
+          - {order_id: 1, amount: 10}
+          - {order_id: 2, amount: 30}
+    expect:
+      rows:
+        - {order_count: 2, total_amount: 40}
+
+  - name: empty_source
+    description: An empty source produces order_count=0 and total_amount=null.
+    model: customer_orders
+    given:
+      - input: source('main', 'orders')
+        rows: []
+    expect:
+      rows:
+        - {order_count: 0, total_amount: null}
