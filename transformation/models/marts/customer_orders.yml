@@ -5,7 +5,7 @@ models:
     description: >
       Reports the order count and total amount from main.orders. Each refresh
       produces a single row summarising all orders: the total number of orders
-      and their combined monetary value.
+      and their combined monetary value. This model is refreshed daily.
     columns:
       - name: order_count
         description: Total number of orders in main.orders.
