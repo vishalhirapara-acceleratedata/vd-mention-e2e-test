@@ -1,0 +1,19 @@
+version: 2
+
+models:
+  - name: customer_orders
+    description: >
+      Reports the order count and total amount from main.orders. Each refresh
+      produces a single row summarising all orders: the total number of orders
+      and their combined monetary value. This model is refreshed daily.
+    columns:
+      - name: order_count
+        description: Total number of orders in main.orders.
+        data_tests:
+          - not_null
+      - name: total_amount
+        description: Sum of the amount column across all orders in main.orders.
+        data_tests:
+          - not_null
+      - name: average_amount
+        description: Average order amount, calculated as total_amount divided by order_count. Null when there are no orders.

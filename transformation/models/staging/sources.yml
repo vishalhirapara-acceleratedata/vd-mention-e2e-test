@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: main
+    schema: main
+    tables:
+      - name: orders
+        description: Raw orders table with order_id and amount.
+        columns:
+          - name: order_id
+            description: Unique identifier for each order.
+          - name: amount
+            description: Order amount in currency units.
