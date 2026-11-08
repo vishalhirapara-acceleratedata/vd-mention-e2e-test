@@ -15,3 +15,5 @@ models:
         description: Sum of the amount column across all orders in main.orders.
         data_tests:
           - not_null
+      - name: average_amount
+        description: Average order amount, calculated as total_amount divided by order_count. Null when there are no orders.
