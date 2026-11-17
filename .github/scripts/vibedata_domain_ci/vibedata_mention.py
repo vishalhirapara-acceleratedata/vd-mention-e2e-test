@@ -45,6 +45,10 @@ REPLIES: dict[str, str] = {
         "Vibedata user guide."
     ),
     "pr_unreadable": "Vibedata could not read this pull request. Comment again to retry.",
+    "pr_not_open": (
+        "This pull request is closed, so Vibedata did not start the request. Reopen it, or open a new "
+        "pull request, and mention Vibedata there."
+    ),
     "unauthorized": (
         "This repository's Vibedata token is invalid or expired. A repository admin must replace the "
         "VIBEDATA_PAT secret with a new token."
@@ -98,7 +102,9 @@ class GitHubPort(Protocol):
 
     def environment_branch_policy(self, repository: str, name: str) -> dict | None: ...
 
-    def head_ref(self, repository: str, pull_request: int) -> str: ...
+    def pull_request_head(self, repository: str, pull_request: int) -> tuple[str, str]:
+        """Return the pull request's (state, head branch); state is GitHub's `open` or `closed`."""
+        ...
 
     def comment(self, repository: str, pull_request: int, body: str) -> None: ...
 
@@ -129,7 +135,7 @@ def build_skill_prompt(
     domain_id: str,
 ) -> str:
     # json.dumps keeps the comment one escaped string, so text shaped like another key
-    # cannot add or replace a field.
+    # cannot add or replace a field. Indented so a person reading the Intent sees one field per line.
     payload = {
         "repository": repository,
         "pull_request": pull_request,
@@ -139,7 +145,7 @@ def build_skill_prompt(
         "studio_url": studio_url.rstrip("/"),
         "domain_id": domain_id,
     }
-    return PROMPT_HEADER + "\n" + json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+    return PROMPT_HEADER + "\n" + json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def _failure_reply(error: StudioError) -> tuple[str, str]:
@@ -253,9 +259,13 @@ def run_mention(
     if not pat:
         return finish("missing_pat", 1, REPLIES["missing_pat"])
     try:
-        head_branch = github.head_ref(event.repository, event.pull_request)
+        pr_state, head_branch = github.pull_request_head(event.repository, event.pull_request)
     except Exception:
         return finish("pr_unreadable", 1, REPLIES["pr_unreadable"])
+    # A merged pull request is closed too. Forwarding there would push to a branch nobody reviews
+    # any more, and re-create it if GitHub already deleted it.
+    if pr_state != "open":
+        return finish("pr_not_open", 0, REPLIES["pr_not_open"])
 
     # Our own reaction lands only after a request reached Vibedata, so it marks a comment
     # that an earlier run already handled.
